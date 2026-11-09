@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stake Auto-Claimer Dashboard & Portal</title>
+    <script>
+      // Safeguard against third-party browser extension errors (e.g. TronLink, MetaMask) inside sandboxed frames
+      (function() {
+        if (typeof window !== 'undefined') {
+          // 1. TronLink Stubs
+          window.tronLink = window.tronLink || {};
+          window.tronWeb = window.tronWeb || null;
+          
+          // 2. MetaMask & Ethereum Provider Safe Stubs
+          try {
+            if (!window.ethereum) {
+              const mockEthereum = {
+                isMetaMask: true,
+                request: function(args) {
+                  console.info('[Sandbox Guard] Blocked mock MetaMask request:', args?.method);
+                  return Promise.reject(new Error('MetaMask is not connected in this sandboxed preview iframe.'));
+                },
+                on: function(event) {
+                  console.info('[Sandbox Guard] Registered mock event:', event);
+                  return this;
+                },
+                removeListener: function() { return this; },
+                enable: function() {
+                  return Promise.reject(new Error('MetaMask is not connected in this sandboxed preview iframe.'));
+                }
+              };
+              Object.defineProperty(window, 'ethereum', {
+                value: mockEthereum,
+                writable: true,
+                configurable: true
+              });
+            } else {
+              // If ethereum exists, wrap request/enable to catch silent failures
+              const origRequest = window.ethereum.request;
+              if (typeof origRequest === 'function') {
+                window.ethereum.request = function() {
+                  try {
+                    const res = origRequest.apply(this, arguments);
+                    if (res && typeof res.catch === 'function') {
+                      return res.catch(err => {
+                        console.warn('[Sandbox Guard] Caught MetaMask request rejection:', err);
+                        return Promise.reject(err);
+                      });
+                    }
+                    return res;
+                  } catch (e) {
+                    console.warn('[Sandbox Guard] Caught MetaMask request sync error:', e);
+                    return Promise.reject(e);
+                  }
+                };
+              }
+            }
+          } catch (e) {
+            console.error('[Sandbox Guard] Failed to initialize ethereum stubs:', e);
+          }
+
+          // 3. Error Event Suppressors
+          window.addEventListener('error', function(event) {
+            const msg = event.message || '';
+            const file = event.filename || '';
+            const isTron = msg.includes('tronlink') || msg.includes('tronlinkParams') || file.includes('tronlink');
+            const isMetaMask = msg.includes('metamask') || msg.includes('MetaMask') || msg.includes('ethereum') || file.includes('metamask') || msg.includes('tronlinkParams');
+            
+            if (isTron || isMetaMask) {
+              console.warn('[Sandbox Guard] Suppressed extension error:', msg);
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          }, true);
+
+          // 4. Unhandled Rejection Suppressors
+          window.addEventListener('unhandledrejection', function(event) {
+            const reason = String(event.reason || '');
+            const isTron = reason.includes('tronlink') || reason.includes('tronlinkParams');
+            const isMetaMask = reason.includes('metamask') || reason.includes('MetaMask') || reason.includes('ethereum') || reason.includes('Failed to connect');
+            
+            if (isTron || isMetaMask) {
+              console.warn('[Sandbox Guard] Suppressed extension rejection:', reason);
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          });
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "Stake Auto-Claimer Analyzer",
+  "description": "An interactive real-time dashboard, code customizer, and behavioral analyzer for Stake.com auto bonus drop claiming scripts and Chrome extensions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
